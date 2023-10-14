@@ -21,8 +21,8 @@ cpu()
 	echo -e "$cpu% CPU"
 }
 
-xsetroot -name "CPU | MEM | DATE    "
+xsetroot -name "CPU | MEM | DATE"
 
 while true; do
-	xsetroot -name " $(cpu) | $(mem) | $(dte)    "
+	xsetroot -name " $(cpu) | $(mem) | $(dte)"
 done &
