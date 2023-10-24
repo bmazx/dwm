@@ -40,6 +40,7 @@
 #include <X11/extensions/Xinerama.h>
 #endif /* XINERAMA */
 #include <X11/Xft/Xft.h>
+#include <X11/XF86keysym.h>
 #include <time.h>
 
 #include "drw.h"
@@ -184,11 +185,14 @@ static void detachstack(Client *c);
 static Monitor *dirtomon(int dir);
 static void drawbar(Monitor *m);
 static void drawbars(void);
+static void enqueue(Client *c);
+static void enqueuestack(Client *c);
 static void expose(XEvent *e);
 static void focus(Client *c);
 static void focusin(XEvent *e);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
+static void gaplessgrid(Monitor *m);
 static Atom getatomprop(Client *c, Atom prop);
 static int getrootptr(int *x, int *y);
 static long getstate(Window w);
@@ -215,6 +219,7 @@ static void resize(Client *c, int x, int y, int w, int h, int interact);
 static void resizeclient(Client *c, int x, int y, int w, int h);
 static void resizemouse(const Arg *arg);
 static void restack(Monitor *m);
+static void rotatestack(const Arg *arg);
 static void run(void);
 static void scan(void);
 static int sendevent(Client *c, Atom proto);
@@ -785,9 +790,8 @@ drawbar(Monitor *m)
 	/* draw status first so it can be overdrawn by tags later */
 	if (m == selmon) { /* status is only drawn on selected monitor */
 		drw_setscheme(drw, scheme[SchemeStatus]);
-		tw = TEXTW(stext) - lrpad + 2; /* 2px right padding */
-		drw_text(drw, m->ww - tw, 0, tw, bh, 0, stext, 0);
-
+		tw = TEXTW(stext) - lrpad + 4; /* 4px right padding */
+		drw_text(drw, m->ww - tw - sp * 2, 0, tw, bh, 0, stext, 0); /* offset text by sidepadding of bar */
 	}
 
 	for (c = m->clients; c; c = c->next) {
@@ -831,6 +835,28 @@ drawbars(void)
 
 	for (m = mons; m; m = m->next)
 		drawbar(m);
+}
+
+void
+enqueue(Client *c)
+{
+	Client *l;
+	for (l = c->mon->clients; l && l->next; l = l->next);
+	if (l) {
+		l->next = c;
+		c->next = NULL;
+	}
+}
+
+void
+enqueuestack(Client *c)
+{
+	Client *l;
+	for (l = c->mon->stack; l && l->snext; l = l->snext);
+	if (l) {
+		l->snext = c;
+		c->snext = NULL;
+	}
 }
 
 void
@@ -911,6 +937,43 @@ focusstack(const Arg *arg)
 	    i -= ISVISIBLE(c) ? 1 : 0, p = c, c = c->next);
 	focus(c ? c : p);
 	restack(selmon);
+}
+
+void
+gaplessgrid(Monitor *m)
+{
+	unsigned int n, cols, rows, cn, rn, i, cx, cy, cw, ch;
+	Client *c;
+
+	for(n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++) ;
+	if(n == 0)
+		return;
+
+	/* grid dimensions */
+	for(cols = 0; cols <= n/2; cols++)
+		if(cols*cols >= n)
+			break;
+	if(n == 5) /* set layout against the general calculation: not 1:2:2, but 2:3 */
+		cols = 2;
+	rows = n/cols;
+
+	/* window geometries */
+	cw = cols ? m->ww / cols : m->ww;
+	cn = 0; /* current column number */
+	rn = 0; /* current row number */
+	for(i = 0, c = nexttiled(m->clients); c; i++, c = nexttiled(c->next)) {
+		if(i/rows + 1 > cols - n%cols)
+			rows = n/cols + 1;
+		ch = rows ? m->wh / rows : m->wh;
+		cx = m->wx + cn*cw;
+		cy = m->wy + rn*ch;
+		resize(c, cx, cy, cw - 2 * c->bw, ch - 2 * c->bw, False);
+		rn++;
+		if(rn >= rows) {
+			rn = 0;
+			cn++;
+		}
+	}
 }
 
 Atom
@@ -1032,7 +1095,11 @@ grabkeys(void)
 void
 incnmaster(const Arg *arg)
 {
-	selmon->nmaster = MAX(selmon->nmaster + arg->i, 0);
+	int n;
+	Client *c;
+	for(n = 0, c = nexttiled(selmon->clients); c; c = nexttiled(c->next), n++);
+
+	selmon->nmaster = MIN(MAX(selmon->nmaster + arg->i, 0), n);
 	arrange(selmon);
 }
 
@@ -1430,8 +1497,8 @@ resizemouse(const Arg *arg)
 				continue;
 			lasttime = ev.xmotion.time;
 
-			nx = horizcorner ? ev.xmotion.x : c->x;
-			ny = vertcorner ? ev.xmotion.y : c->y;
+			nx = horizcorner ? (ev.xmotion.x < ocx2 ? ev.xmotion.x : ocx2) : c->x;
+			ny = vertcorner ? (ev.xmotion.y < ocy2 ? ev.xmotion.y : ocy2) : c->y;
 			nw = MAX(horizcorner ? (ocx2 - nx) : (ev.xmotion.x - ocx - 2 * c->bw + 1), 1);
 			nh = MAX(vertcorner ? (ocy2 - ny) : (ev.xmotion.y - ocy - 2 * c->bw + 1), 1);
 
@@ -1482,6 +1549,38 @@ restack(Monitor *m)
 	}
 	XSync(dpy, False);
 	while (XCheckMaskEvent(dpy, EnterWindowMask, &ev));
+}
+
+void
+rotatestack(const Arg *arg)
+{
+	Client *c = NULL, *f;
+
+	if (!selmon->sel)
+		return;
+	f = selmon->sel;
+	if (arg->i > 0) {
+		for (c = nexttiled(selmon->clients); c && nexttiled(c->next); c = nexttiled(c->next));
+		if (c){
+			detach(c);
+			attach(c);
+			detachstack(c);
+			attachstack(c);
+		}
+	} else {
+		if ((c = nexttiled(selmon->clients))){
+			detach(c);
+			enqueue(c);
+			detachstack(c);
+			enqueuestack(c);
+		}
+	}
+	if (c){
+		arrange(selmon);
+		//unfocus(f, 1);
+		focus(f);
+		restack(selmon);
+	}
 }
 
 void
@@ -1704,7 +1803,7 @@ setup(void)
 	wmatom[WMTakeFocus] = XInternAtom(dpy, "WM_TAKE_FOCUS", False);
 	netatom[NetActiveWindow] = XInternAtom(dpy, "_NET_ACTIVE_WINDOW", False);
 	netatom[NetSupported] = XInternAtom(dpy, "_NET_SUPPORTED", False);
-	netatom[NetWMName] = XInternAtom(dpy, "_NET_WM_NAME", False);
+	netatom[NetWMName] = XInternAtom(dpy, "_NET_WM_CLASS", False);
 	netatom[NetWMState] = XInternAtom(dpy, "_NET_WM_STATE", False);
 	netatom[NetWMCheck] = XInternAtom(dpy, "_NET_SUPPORTING_WM_CHECK", False);
 	netatom[NetWMFullscreen] = XInternAtom(dpy, "_NET_WM_STATE_FULLSCREEN", False);
@@ -2088,7 +2187,7 @@ tile(Monitor *m)
 		return;
 
 	if (m->drawwithgaps) { /* draw with fullgaps logic */
-                if (n > m->nmaster)
+		if (n > m->nmaster)
                         mw = m->nmaster ? m->ww * m->mfact : 0;
                 else
                         mw = m->ww - m->gappx;
@@ -2105,7 +2204,7 @@ tile(Monitor *m)
                                         ty += HEIGHT(c) + m->gappx;
                         }
         } else { /* draw with singularborders logic */
-                if (n > m->nmaster)
+		if (n > m->nmaster)
                         mw = m->nmaster ? m->ww * m->mfact : 0;
                 else
                         mw = m->ww;
@@ -2123,7 +2222,6 @@ tile(Monitor *m)
                                 ty += HEIGHT(c) - c->bw;
                         }
         }
-
 }
 
 void
@@ -2453,7 +2551,7 @@ void
 updatetitle(Client *c)
 {
 	if (!gettextprop(c->win, netatom[NetWMName], c->name, sizeof c->name))
-		gettextprop(c->win, XA_WM_NAME, c->name, sizeof c->name);
+		gettextprop(c->win, XA_WM_CLASS, c->name, sizeof c->name);
 	if (c->name[0] == '\0') /* hack to mark broken clients */
 		strcpy(c->name, broken);
 }
