@@ -1,0 +1,110 @@
+configuration {
+  display-drun: "Launch:";
+  display-run: "Exec:";
+  display-window: "Windows:";
+  drun-display-format: "{icon} {name}";
+  font: "JetBrainsMono Nerd Font Medium 10";
+  modes: [ window, run, drun ];
+  show-icons: true;
+  icon-theme: "Adwaita";
+}
+
+@theme "/dev/null"
+
+* {
+  bg: #222222;
+  bg-alt: #222222;
+  bg-selected: #005577;
+
+  fg: #eeeeee;
+  fg-alt: #6c7086;
+
+
+  margin: 0;
+  padding: 0;
+  spacing: 0;
+}
+
+window {
+  width: 50%;
+  height: 60%;
+  background-color: @bg;
+  border: 1;
+  border-color: @bg-selected;
+}
+
+element {
+  padding: 8 12;
+  background-color: transparent;
+  text-color: @fg-alt;
+  cursor: pointer;
+}
+
+element selected {
+  text-color: @fg;
+  background-color: @bg-selected;
+}
+
+element-text {
+  background-color: transparent;
+  text-color: inherit;
+  vertical-align: 0.5;
+  cursor: pointer;
+}
+
+element-icon {
+  size: 0.8em;
+  padding: 0 10px 0 0;
+  background-color: transparent;
+  cursor: pointer;
+}
+
+prompt {
+  vertical-align: 0.5;
+  margin: 8px 0 8px 8px;
+  padding: 4px;
+  background-color: @bg;
+  text-color: @fg;
+}
+
+entry {
+  padding: 6px;
+  placeholder: " Search...";
+  placeholder-color: @fg-alt;
+  cursor: text;
+  background-color: @bg;
+  text-color: @fg;
+  margin: 8px 8px 8px 0;
+}
+
+textbox-prompt-colon {
+  vertical-align: 0.5;
+  expand: false;
+  str: "";
+  background-color: @bg-alt;
+  text-color: @fg;
+}
+
+inputbar {
+  children: [prompt,textbox-prompt-colon, entry];
+  background-color: @bg-alt;
+}
+
+listview {
+  background-color: @bg-alt;
+  scrollbar: true;
+  columns: 1;
+  lines: 10;
+}
+
+scrollbar {
+  background-color: @bg;
+  handle-width: 2px;
+  handle-color: @fg;
+  margin: 2px;
+  handle-rounded-corners: true;
+}
+mainbox {
+  children: [inputbar, listview];
+  background-color: @bg;
+}
