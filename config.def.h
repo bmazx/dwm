@@ -1,13 +1,16 @@
 /* See LICENSE file for copyright and license details. */
 
+#include <X11/XF86keysym.h>
+
+
 /* appearance */
 static const unsigned int borderpx  = 2;        /* border pixel of windows */
 static const unsigned int snap      = 32;       /* snap pixel */
 static const int showbar            = 1;        /* 0 means no bar */
 static const int topbar             = 1;        /* 0 means bottom bar */
 static const int focusonwheel       = 0;
-static const char *fonts[]          = { "monospace:size=10" };
-static const char dmenufont[]       = "monospace:size=10";
+static const char *fonts[]          = { "JetBrainsMono Nerd Font:size=10" };
+static const char dmenufont[]       = "JetBrainsMonoNerdFont-Regular:size=10";
 static const char col_gray1[]       = "#222222";
 static const char col_gray2[]       = "#444444";
 static const char col_gray3[]       = "#bbbbbb";
@@ -65,6 +68,12 @@ static const char *dmenucmd[] = { "dmenu_run", "-m", dmenumon, "-fn", dmenufont,
 static const char *runcmd[] = { "rofi", "-dpi", "192", "-config", "~/.config/rofi/config-dwm.rasi", "-show", "drun", NULL };
 static const char *termcmd[]  = { "kitty", NULL };
 static const char *filecmd[]  = { "dolphin", NULL };
+static const char *volupcmd[] = { "wpctl", "set-volume", "-l", "1", "@DEFAULT_AUDIO_SINK@", "2%+", NULL };
+static const char *voldowncmd[] = { "wpctl", "set-volume", "-l", "1", "@DEFAULT_AUDIO_SINK@", "2%-", NULL };
+static const char *mutecmd[] = { "wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle", NULL };
+static const char *mutemiccmd[] = { "wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", "toggle", NULL };
+static const char *brightnessupcmd[] = { "brightnessctl", "-e4", "-n2", "set", "5%+", NULL };
+static const char *brightnessdowncmd[] = { "brightnessctl", "-e4", "-n2", "set", "5%-", NULL };
 
 static const Key keys[] = {
 	/* modifier                     key        function        argument */
@@ -94,6 +103,12 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_period, focusmon,       {.i = +1 } },
 	{ MODKEY|ShiftMask,             XK_comma,  tagmon,         {.i = -1 } },
 	{ MODKEY|ShiftMask,             XK_period, tagmon,         {.i = +1 } },
+	{ 0,                            XF86XK_AudioLowerVolume, spawn, {.v = voldowncmd } },
+	{ 0,                            XF86XK_AudioRaiseVolume, spawn, {.v = volupcmd } },
+	{ 0,                            XF86XK_AudioMute, spawn,   {.v = mutecmd } },
+	{ 0,                            XF86XK_AudioMicMute, spawn, {.v = mutemiccmd } },
+	{ 0,                            XF86XK_MonBrightnessUp, spawn, {.v = brightnessupcmd } },
+	{ 0,                            XF86XK_MonBrightnessDown, spawn, {.v = brightnessdowncmd } },
 	TAGKEYS(                        XK_1,                      0)
 	TAGKEYS(                        XK_2,                      1)
 	TAGKEYS(                        XK_3,                      2)
